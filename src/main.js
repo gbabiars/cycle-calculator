@@ -33,6 +33,42 @@ function calculateTotal(operator, previousTotal, bufferValue) {
   return previousTotal;
 }
 
+function accumulateState(previousState, input) {
+  if(Number.isInteger(input)) {
+    return {
+      total: previousState.total,
+      buffer: `${previousState.buffer}${input}`,
+      operator: previousState.operator
+    };
+  }
+
+  if(input === CLEAR) {
+    return defaults;
+  }
+
+  if(previousState.buffer === '') {
+    return {
+      total: previousState.total,
+      buffer: '',
+      operator: input
+    };
+  }
+
+  if(previousState.operator === EQUALS) {
+    return {
+      total: parseInt(previousState.buffer, 10),
+      buffer: '',
+      operator: input
+    };
+  }
+
+  return {
+    total: calculateTotal(previousState.operator, previousState.total, parseInt(previousState.buffer, 10)),
+    buffer: '',
+    operator: input
+  };
+}
+
 function intent(domSource) {
   const numberClick$ = domSource.select('.value').events('click')
     .map(event => parseInt(event.target.textContent, 10));
@@ -44,44 +80,9 @@ function intent(domSource) {
 function model({ numberClick$, operatorClick$ }) {
   const number$ = numberClick$.startWith(0);
   const operator$ = operatorClick$.startWith(ADD);
-  const buffer$ = xs.merge(numberClick$, operatorClick$)
-    .fold((prev, input) => {
-      if(Number.isInteger(input)) {
-        return {
-          total: prev.total,
-          buffer: `${prev.buffer}${input}`,
-          operator: prev.operator
-        };
-      }
-
-      if(input === CLEAR) {
-        return defaults;
-      }
-
-      if(prev.buffer === '') {
-        return {
-          total: prev.total,
-          buffer: '',
-          operator: input
-        };
-      }
-
-      if(prev.operator === EQUALS) {
-        return {
-          total: parseInt(prev.buffer, 10),
-          buffer: '',
-          operator: input
-        };
-      }
-
-      return {
-          total: calculateTotal(prev.operator, prev.total, parseInt(prev.buffer, 10)),
-          buffer: '',
-          operator: input
-      };
-    }, defaults);
-
-  return buffer$.debug();
+  return xs.merge(numberClick$, operatorClick$)
+    .fold(accumulateState, defaults)
+    .debug();
 }
 
 function view(state$) {
